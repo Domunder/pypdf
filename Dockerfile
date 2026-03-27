@@ -48,6 +48,8 @@ EXPOSE 8080
 ENV PYPDF_MODE=single \
     PAGES_DELIMITER="\n" \
     EXTRACT_IMAGES=false \
+    MAX_FILE_SIZE_MB=20 \
+    MAX_TASK_TIMEOUT=60 \
     API_KEY="" \
     PORT=8080 \
     HOST=0.0.0.0 \

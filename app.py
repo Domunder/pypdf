@@ -1,147 +1,107 @@
-"""
-PyPDF External Document Extraction Service for OpenWebUI
-=========================================================
-Implements the OpenWebUI External Content Extraction Engine API.
-OpenWebUI sends:  PUT /process  (multipart form-data, field name: "file")
-This service responds with: {"documents": [{"page_content": "...", "metadata": {...}}]}
-Mode: "single" — the entire PDF is returned as one Document object.
-"""
-
+import asyncio
 import logging
 import os
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile, Request
 from fastapi.responses import JSONResponse
 from langchain_community.document_loaders import PyPDFLoader
 
 # ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+API_KEY = os.getenv("API_KEY", "")
+MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "20"))
+TASK_TIMEOUT = int(os.getenv("TASK_TIMEOUT", "60"))
+ALLOWED_TYPES = {"application/pdf"}
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-)
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("pypdf-extractor")
 
 # ---------------------------------------------------------------------------
-# Config (all overridable via environment variables)
+# App
 # ---------------------------------------------------------------------------
-API_KEY: str = os.getenv("API_KEY", "")          # empty = no auth required
-PYPDF_MODE: str = os.getenv("PYPDF_MODE", "single")  # "single" | "page"
-PAGES_DELIMITER: str = os.getenv("PAGES_DELIMITER", "\n")
-EXTRACT_IMAGES: bool = os.getenv("EXTRACT_IMAGES", "false").lower() == "true"
+app = FastAPI(title="PyPDF Extractor", version="2.0.0")
 
-# ---------------------------------------------------------------------------
-# FastAPI app
-# ---------------------------------------------------------------------------
-app = FastAPI(
-    title="PyPDF External Document Extractor",
-    description="OpenWebUI-compatible external content extraction engine using LangChain PyPDFLoader.",
-    version="1.0.0",
-)
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    log.info(f"{request.method} {request.url}")
+    response = await call_next(request)
+    return response
 
 
 @app.get("/health")
-async def health() -> dict:
-    """Liveness / readiness probe."""
+async def health():
     return {"status": "ok"}
 
 
-@app.put("/process")
-async def process_document(
+@app.post("/process")
+async def process(
     file: UploadFile = File(...),
-    authorization: str | None = Header(default=None),
-    # Optional user-context headers forwarded by OpenWebUI when
-    # ENABLE_FORWARD_USER_INFO_HEADERS=true
-    x_user_id: str | None = Header(default=None),
-    x_user_email: str | None = Header(default=None),
-    x_user_name: str | None = Header(default=None),
-    x_user_role: str | None = Header(default=None),
-) -> JSONResponse:
-    """
-    Main extraction endpoint.
-
-    OpenWebUI sends the raw file bytes as multipart/form-data.
-    We write it to a temp file, run PyPDFLoader, and return the
-    extracted documents in the format OpenWebUI expects.
-    """
-    # --- Optional bearer-token auth ---
+    authorization: str = Header(default=""),
+):
+    # --- Auth ---
     if API_KEY:
-        token = ""
-        if authorization and authorization.lower().startswith("bearer "):
-            token = authorization[7:].strip()
+        token = authorization.replace("Bearer ", "") if authorization else ""
         if token != API_KEY:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
-    filename: str = file.filename or "upload.pdf"
-    log.info(
-        "Processing file=%s user=%s role=%s",
-        filename,
-        x_user_name or x_user_id or "anonymous",
-        x_user_role or "-",
-    )
+    # --- Validate content type ---
+    if file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="Only PDF files allowed")
 
-    # --- Write upload to a temporary file so PyPDFLoader can read it ---
-    suffix = Path(filename).suffix or ".pdf"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp_path = tmp.name
-        content = await file.read()
-        tmp.write(content)
+    # --- Stream upload into temp file, enforcing size limit ---
+    size = 0
+    suffix = Path(file.filename or "upload.pdf").suffix or ".pdf"
+    tmp_path: str | None = None
 
     try:
-        documents = _extract(tmp_path, filename)
-    except Exception as exc:
-        log.exception("Extraction failed for %s", filename)
-        raise HTTPException(status_code=500, detail=f"Extraction error: {exc}") from exc
-    finally:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp_path = tmp.name
+            while chunk := await file.read(1024 * 1024):  # 1 MB chunks
+                size += len(chunk)
+                if size > MAX_FILE_SIZE_MB * 1024 * 1024:
+                    raise HTTPException(status_code=413, detail="File too large")
+                tmp.write(chunk)
+
+        # --- Extract with timeout ---
         try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+            docs = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(
+                    None, _extract, tmp_path, file.filename or "upload.pdf"
+                ),
+                timeout=TASK_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            log.warning("Extraction timed out after %ds for %s", TASK_TIMEOUT, file.filename)
+            raise HTTPException(status_code=504, detail=f"Extraction timed out after {TASK_TIMEOUT}s")
+        except Exception:
+            log.exception("Extraction failed for %s", file.filename)
+            raise HTTPException(status_code=500, detail="Extraction failed")
 
-    log.info("Extracted %d document(s) from %s", len(documents), filename)
+        return JSONResponse(content={
+            "documents": [
+                {"page_content": d.page_content, "metadata": d.metadata}
+                for d in docs
+            ]
+        })
 
-    # Serialise to the format OpenWebUI's ExternalDocumentLoader expects:
-    # {"documents": [{"page_content": str, "metadata": dict}, ...]}
-    payload = {
-        "documents": [
-            {
-                "page_content": doc.page_content,
-                "metadata": doc.metadata,
-            }
-            for doc in documents
-        ]
-    }
-    return JSONResponse(content=payload)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
-# ---------------------------------------------------------------------------
-# Extraction logic
-# ---------------------------------------------------------------------------
-def _extract(file_path: str, original_filename: str):
-    """
-    Run PyPDFLoader in the configured mode and return a list of
-    langchain Document objects.
-    """
-    loader_kwargs: dict = {
-        "extract_images": EXTRACT_IMAGES,
-    }
-
-    if PYPDF_MODE == "single":
-        loader_kwargs["mode"] = "single"
-        if PAGES_DELIMITER:
-            loader_kwargs["pages_delimiter"] = PAGES_DELIMITER
-    else:
-        loader_kwargs["mode"] = "page"
-
-    loader = PyPDFLoader(file_path, **loader_kwargs)
+def _extract(file_path: str, filename: str):
+    loader = PyPDFLoader(file_path, mode="single")
     docs = loader.load()
-
-    # Patch the "source" metadata field to use the original filename
-    # instead of the temp-file path, which would be meaningless to the caller.
-    for doc in docs:
-        doc.metadata["source"] = original_filename
-
+    for d in docs:
+        d.metadata["source"] = filename
     return docs

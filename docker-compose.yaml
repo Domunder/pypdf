@@ -1,0 +1,15 @@
+services:
+  pypdf-extractor:
+    image: pypdf-extractor
+    build: .
+    container_name: pypdf-extractor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      API_KEY: "secret"
+      WORKERS: 2
+      
+networks:
+  shared-net:
+    external: true
