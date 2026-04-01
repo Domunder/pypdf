@@ -57,17 +57,7 @@ USER ${APP_UID}
 EXPOSE 8080
 
 # Environment variable defaults — all overridable at deploy time
-ENV PDF_LOADER_MODE=single \
-    PDF_EXTRACT_IMAGES=false \
-    MAX_FILE_SIZE_MB=100 \
-    TASK_TIMEOUT=60 \
-    API_KEY="secret" \
-    PORT=5001 \
-    HOST=0.0.0.0 \
-    THREAD_WORKERS=4
+ENV PORT=5001 \
+    HOST=0.0.0.0
 
-CMD uvicorn app:app \
-    --host "$HOST" \
-    --port "$PORT" \
-    --log-level info \
-    --no-access-log
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5001", "--log-level", "info", "--no-access-log"]
