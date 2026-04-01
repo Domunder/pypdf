@@ -27,7 +27,7 @@ from langchain_core.documents import Document
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-API_KEY = os.getenv("API_KEY", "")
+API_KEY = os.getenv("API_KEY", "secret")
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "100"))
 TASK_TIMEOUT = int(os.getenv("TASK_TIMEOUT", "60"))
 PDF_EXTRACT_IMAGES = os.getenv("PDF_EXTRACT_IMAGES", "false").lower() == "true"
@@ -177,6 +177,7 @@ async def process(
     if API_KEY:
         token = authorization.replace("Bearer ", "").strip() if authorization else ""
         if token != API_KEY:
+            log.warning("Unauthorized access attempt")
             raise HTTPException(status_code=401, detail="Unauthorized")
 
     content_type = request.headers.get("Content-Type", "")

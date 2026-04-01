@@ -32,7 +32,7 @@ oc rollout status deployment/openwebui-loaders
 |---|---|
 | Content Extraction Engine | `External` |
 | Extraction Engine URL | `http://openwebui-loaders.<namespace>.svc.cluster.local` |
-| Extraction Engine API Key | *(leave blank, or set if `API_KEY` is configured)* |
+| Extraction Engine API Key | *(`secret`, or set if `API_KEY` is configured)* |
 
 ---
 
