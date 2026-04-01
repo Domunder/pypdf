@@ -8,4 +8,3 @@ ftfy==6.3.1
 unstructured==0.22.6
 docx2txt==0.9
 python-magic==0.4.27
-chardet

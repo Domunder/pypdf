@@ -51,10 +51,6 @@ spec:
               value: "5001"
             # Optional API key — set via a Secret (see notes below)
             # - name: API_KEY
-            #   valueFrom:
-            #     secretKeyRef:
-            #       name: openwebui-loaders-secret
-            #       key: api-key
 
           # ----------------------------------------------------------------
           # Read-only filesystem: mount writable scratch space
@@ -80,7 +76,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 5001
             initialDelaySeconds: 10
             periodSeconds: 30
             timeoutSeconds: 5
@@ -89,10 +85,10 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 5001
             initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 3
+            periodSeconds: 30
+            timeoutSeconds: 5
             failureThreshold: 3
 
       volumes:
