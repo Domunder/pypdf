@@ -8,3 +8,13 @@ ftfy==6.3.1
 unstructured==0.22.6
 docx2txt==0.9
 python-magic==0.4.27
+networkx==3.6.1
+python-pptx==1.0.2
+python-docx==1.2.0
+chardet==7.4.0.post2
+pandas==3.0.2
+pypandoc==1.17
+msoffcrypto-tool==6.0.0
+openpyxl==3.1.5
+xlrd==2.0.2
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl

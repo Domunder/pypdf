@@ -3,15 +3,8 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
-# Build-time system deps needed to compile some Python packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libmagic1 \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
-
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM python:3.11-slim
@@ -21,15 +14,20 @@ LABEL org.opencontainers.image.title="openwebui-loaders" \
     org.opencontainers.image.version="2.0.0"
 
 # Runtime system libraries required by loaders:
-#   libmagic1       → python-magic (MIME sniffing used by unstructured)
-#   libxml2 / libxslt → XML/HTML parsing (BSHTMLLoader, UnstructuredXMLLoader)
-#   libreoffice     → ODT support via unstructured (remove if you don't need ODT)
-#   pandoc          → RST conversion via unstructured (remove if you don't need RST)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     libmagic1 \
-    libxml2 \
-    libxslt1.1 \
+    libreoffice \
+    wget \
+    && wget https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-1-amd64.deb \
+    && dpkg -i pandoc-3.6.4-1-amd64.deb \
+    && rm pandoc-3.6.4-1-amd64.deb \
     && rm -rf /var/lib/apt/lists/*
+
+ENV HOME=/tmp \
+    PATH="/usr/lib/libreoffice/program:${PATH}"
+
+
 
 # OpenShift runs containers with a random UID in group 0 (root group).
 ENV APP_HOME=/app \
@@ -54,7 +52,7 @@ RUN mkdir -p /tmp/doc-work && \
 
 USER ${APP_UID}
 
-EXPOSE 8080
+EXPOSE 5001
 
 # Environment variable defaults — all overridable at deploy time
 ENV PORT=5001 \

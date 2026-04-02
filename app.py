@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-import time
+from datetime import datetime
 import tempfile
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
@@ -66,7 +66,7 @@ app = FastAPI(title="OpenWebUI Document Loaders", version="3.0.0")
 def startup_executor():
     global _executor
     _executor = ThreadPoolExecutor(max_workers=THREAD_WORKERS)
-    log.info(f"{time.localtime()} ThreadPoolExecutor started with {THREAD_WORKERS} workers")
+    log.info(f"{datetime.now()} ThreadPoolExecutor started with {THREAD_WORKERS} workers")
 
 
 @app.on_event("shutdown")
@@ -74,12 +74,12 @@ def shutdown_executor():
     global _executor
     if _executor:
         _executor.shutdown(wait=False)
-        log.info(f"{time.localtime()} ThreadPoolExecutor shut down")
+        log.info(f"{datetime.now()} ThreadPoolExecutor shut down")
 
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    log.info(f"{time.localtime()} {request.method} {request.url}")
+    log.info(f"{datetime.now()} {request.method} {request.url}")
     response = await call_next(request)
     return response
 
@@ -178,7 +178,7 @@ async def process(
     if API_KEY:
         token = authorization.replace("Bearer ", "").strip() if authorization else ""
         if token != API_KEY:
-            log.warning(f'{time.localtime()} Unauthorized access attempt')
+            log.warning(f'{datetime.now()} Unauthorized access attempt')
             raise HTTPException(status_code=401, detail="Unauthorized")
 
     content_type = request.headers.get("Content-Type", "")
@@ -211,7 +211,7 @@ async def process(
             tmp_path = tmp.name
             tmp.write(body)
 
-        log.info(f"{time.localtime()} Processing '%s' (%s, %.1f KB)", filename, file_content_type, size / 1024)
+        log.info(f"{datetime.now()} Processing '%s' (%s, %.1f KB)", filename, file_content_type, size / 1024)
 
         try:
             loop = asyncio.get_running_loop()
@@ -227,7 +227,7 @@ async def process(
         except asyncio.TimeoutError:
             raise HTTPException(status_code=504, detail=f"Extraction timed out after {TASK_TIMEOUT}s")
         except Exception:
-            log.exception(f"{time.localtime()} Extraction failed for '%s'", filename)
+            log.exception(f"{datetime.now()} Extraction failed for '%s'", filename)
             raise HTTPException(status_code=500, detail="Extraction failed")
 
         return JSONResponse(

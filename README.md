@@ -3,7 +3,7 @@
 An OpenWebUI-compatible **External Content Extraction Engine** that runs all of
 LangChain's document loaders as a standalone microservice.
 
-Supported formats: PDF, DOCX, XLSX, PPTX, CSV, XML, HTML, Markdown, EPUB, ODT, RST, MSG, and plain-text / source-code files.
+Supported formats: PDF, DOCX, XLSX, XLS, PPTX, PPT, CSV, XML, HTML, Markdown, EPUB, ODT, RST, MSG, and plain-text / source-code files.
 
 ---
 
