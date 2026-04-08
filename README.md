@@ -41,8 +41,6 @@ oc rollout status deployment/openwebui-loaders
 | Variable | Default | Description |
 |---|---|---|
 | `API_KEY` | `secret` | Bearer token for auth; leave empty to disable |
-| `MAX_FILE_SIZE_MB` | `100` | Upload size limit |
-| `TASK_TIMEOUT` | `60` | Max seconds per extraction before 504 |
 | `PDF_LOADER_MODE` | `single` | `page` = one doc per page, `single` = whole file as one doc |
 | `PDF_EXTRACT_IMAGES` | `false` | Enable image OCR (requires `rapidocr-onnxruntime`) |
 | `PORT` | `5001` | Listening port |

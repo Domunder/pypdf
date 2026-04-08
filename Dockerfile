@@ -57,10 +57,10 @@ EXPOSE 5001
 # Environment variable defaults — all overridable at deploy time
 ENV PORT=5001 \
     HOST=0.0.0.0 \
-    MALLOC_TRIM_THRESHOLD_=131072 \ 
-    MALLOC_MMAP_THRESHOLD_=131072 \ 
-    MALLOC_MMAP_MAX_=65536 \        
-    PYTHONMALLOC=malloc \           
+    MALLOC_TRIM_THRESHOLD_=131072 \
+    MALLOC_MMAP_THRESHOLD_=131072 \
+    MALLOC_MMAP_MAX_=65536 \
+    PYTHONMALLOC=malloc \
     PYTHONDONTWRITEBYTECODE=1
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5001", "--log-level", "info", "--no-access-log"]
